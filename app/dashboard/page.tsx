@@ -91,10 +91,16 @@ export default function DashboardPage() {
     await loadLeads();
   };
 
+  // ✅ Updated: stage update returns updated row + triggers webhook when Qualified
   const updateStage = async (id: string, stage: string) => {
     setError(null);
 
-    const { error } = await supabase.from("leads").update({ stage }).eq("id", id);
+    const { data: updated, error } = await supabase
+      .from("leads")
+      .update({ stage })
+      .eq("id", id)
+      .select("*")
+      .single();
 
     if (error) {
       setError("❌ " + error.message);
@@ -103,6 +109,23 @@ export default function DashboardPage() {
 
     // update UI instantly
     setLeads((prev) => prev.map((l) => (l.id === id ? { ...l, stage } : l)));
+
+    // 🔥 Automation trigger
+    if (stage === "Qualified") {
+      fetch("/api/lead-qualified", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          leadId: updated.id,
+          company: updated.company,
+          contact_name: updated.contact_name,
+          email: updated.email,
+          source: updated.source,
+          stage: updated.stage,
+          qualifiedAt: new Date().toISOString(),
+        }),
+      }).catch((e) => console.warn("Webhook failed", e));
+    }
   };
 
   if (loading) {
@@ -118,7 +141,9 @@ export default function DashboardPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">VX Ops Hub</h1>
-          <p className="mt-1 text-sm opacity-80">Signed in as: <b>{userEmail}</b></p>
+          <p className="mt-1 text-sm opacity-80">
+            Signed in as: <b>{userEmail}</b>
+          </p>
         </div>
         <button className="rounded-lg border px-3 py-2" onClick={signOut}>
           Sign out
