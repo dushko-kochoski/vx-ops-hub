@@ -13,7 +13,7 @@ type Lead = {
   stage: string;
   user_id: string | null;
 
-  // ✅ added for idempotent qualification + automation
+  // added for idempotent qualification + automation
   qualified_at?: string | null;
   qualified_event_id?: string | null;
 };
@@ -68,7 +68,7 @@ export default function DashboardPage() {
     window.location.href = "/login";
   };
 
-  // ── Debug helper ────────────────────────────────────────────────
+  // Debug helper
   const debugSession = async () => {
     const { data } = await supabase.auth.getSession();
     console.log("SESSION:", data.session);
@@ -106,22 +106,15 @@ export default function DashboardPage() {
   const updateStage = async (id: string, stage: string) => {
     setError(null);
 
-    // Find current lead in state (so we know if it was qualified before)
     const current = leads.find((l) => l.id === id);
     if (!current) {
       setError("❌ Lead not found in state. Try refreshing.");
       return;
     }
 
-    // ✅ Only treat as "first-time qualify" if:
-    // - stage is moving to Qualified
-    // - and no qualified_event_id exists yet
     const isFirstQualify = stage === "Qualified" && !current.qualified_event_id;
-
-    // Generate eventId only for first qualification
     const eventId = isFirstQualify ? crypto.randomUUID() : null;
 
-    // Build update payload
     const updatePayload: Partial<Lead> & Record<string, any> = { stage };
 
     if (isFirstQualify && eventId) {
@@ -129,7 +122,6 @@ export default function DashboardPage() {
       updatePayload.qualified_at = new Date().toISOString();
     }
 
-    // Update the lead row and get the updated record back
     const { data: updated, error } = await supabase
       .from("leads")
       .update(updatePayload)
@@ -142,10 +134,8 @@ export default function DashboardPage() {
       return;
     }
 
-    // Update UI state with the returned row (best: keeps new columns too)
     setLeads((prev) => prev.map((l) => (l.id === id ? (updated as Lead) : l)));
 
-    // ✅ Trigger automation ONLY once (first-time qualification)
     if (isFirstQualify && eventId) {
       const qualRes = await fetch("/api/lead-qualified", {
         method: "POST",
@@ -160,6 +150,22 @@ export default function DashboardPage() {
       const qualBody = await qualRes.json().catch(() => ({}));
       if (!qualRes.ok) console.warn("Webhook failed", qualRes.status, qualBody);
     }
+  };
+
+  const deleteLead = async (id: string) => {
+    setError(null);
+
+    const ok = window.confirm("Delete this lead? This cannot be undone.");
+    if (!ok) return;
+
+    const { error } = await supabase.from("leads").delete().eq("id", id);
+
+    if (error) {
+      setError("❌ " + error.message);
+      return;
+    }
+
+    setLeads((prev) => prev.filter((l) => l.id !== id));
   };
 
   if (loading) {
@@ -180,7 +186,6 @@ export default function DashboardPage() {
           </p>
         </div>
 
-        {/* Buttons side by side */}
         <div className="flex items-center gap-3">
           <button
             className="rounded-lg border px-3 py-2 hover:bg-gray-100"
@@ -255,7 +260,7 @@ export default function DashboardPage() {
               leads.map((lead) => (
                 <div key={lead.id} className="rounded-lg border p-4">
                   <div className="flex items-start justify-between gap-4">
-                    <div>
+                    <div className="flex-1">
                       <div className="font-semibold">{lead.company}</div>
                       <div className="text-sm opacity-80">
                         {lead.contact_name ?? "—"} · {lead.email ?? "—"}
@@ -264,7 +269,6 @@ export default function DashboardPage() {
                         Source: {lead.source ?? "—"}
                       </div>
 
-                      {/* Optional: show that it was qualified once (helps debugging) */}
                       {lead.qualified_event_id && (
                         <div className="mt-2 text-[11px] opacity-60">
                           Qualified event set ✅
@@ -272,17 +276,27 @@ export default function DashboardPage() {
                       )}
                     </div>
 
-                    <select
-                      className="rounded-lg border px-2 py-1"
-                      value={lead.stage}
-                      onChange={(e) => updateStage(lead.id, e.target.value)}
-                    >
-                      {STAGES.map((s) => (
-                        <option key={s} value={s}>
-                          {s}
-                        </option>
-                      ))}
-                    </select>
+                    <div className="flex items-center gap-2">
+                      <select
+                        className="rounded-lg border px-2 py-1"
+                        value={lead.stage}
+                        onChange={(e) => updateStage(lead.id, e.target.value)}
+                      >
+                        {STAGES.map((s) => (
+                          <option key={s} value={s}>
+                            {s}
+                          </option>
+                        ))}
+                      </select>
+
+                      <button
+                        className="rounded-lg border px-2 py-1 text-red-600 hover:bg-red-50 border-red-200"
+                        onClick={() => deleteLead(lead.id)}
+                        title="Delete lead"
+                      >
+                        Delete
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))
