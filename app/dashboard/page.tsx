@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import OutreachEmailModal from "./OutreachEmailModal";   // ← make sure this path is correct
 
 type Lead = {
   id: string;
@@ -26,6 +27,10 @@ export default function DashboardPage() {
 
   const [leads, setLeads] = useState<Lead[]>([]);
   const [error, setError] = useState<string | null>(null);
+
+  // Modal state
+  const [modalOpen, setModalOpen] = useState(false);
+  const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
 
   // form state
   const [company, setCompany] = useState("");
@@ -68,7 +73,6 @@ export default function DashboardPage() {
     window.location.href = "/login";
   };
 
-  // Debug helper
   const debugSession = async () => {
     const { data } = await supabase.auth.getSession();
     console.log("SESSION:", data.session);
@@ -166,6 +170,17 @@ export default function DashboardPage() {
     }
 
     setLeads((prev) => prev.filter((l) => l.id !== id));
+  };
+
+  // Modal handlers
+  const openEmailModal = (lead: Lead) => {
+    setSelectedLead(lead);
+    setModalOpen(true);
+  };
+
+  const closeEmailModal = () => {
+    setModalOpen(false);
+    setSelectedLead(null);
   };
 
   if (loading) {
@@ -276,9 +291,9 @@ export default function DashboardPage() {
                       )}
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <select
-                        className="rounded-lg border px-2 py-1"
+                        className="rounded-lg border px-2 py-1 text-sm"
                         value={lead.stage}
                         onChange={(e) => updateStage(lead.id, e.target.value)}
                       >
@@ -290,7 +305,15 @@ export default function DashboardPage() {
                       </select>
 
                       <button
-                        className="rounded-lg border px-2 py-1 text-red-600 hover:bg-red-50 border-red-200"
+                        onClick={() => openEmailModal(lead)}
+                        className="rounded-lg border border-blue-300 px-3 py-1 text-sm text-blue-700 hover:bg-blue-50"
+                        title="Generate outreach email"
+                      >
+                        Generate email
+                      </button>
+
+                      <button
+                        className="rounded-lg border border-red-200 px-3 py-1 text-sm text-red-600 hover:bg-red-50"
                         onClick={() => deleteLead(lead.id)}
                         title="Delete lead"
                       >
@@ -304,6 +327,13 @@ export default function DashboardPage() {
           </div>
         </section>
       </div>
+
+      {/* Modal */}
+      <OutreachEmailModal
+        open={modalOpen}
+        onClose={closeEmailModal}
+        lead={selectedLead}
+      />
     </main>
   );
 }
