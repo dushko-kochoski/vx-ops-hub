@@ -1,0 +1,5 @@
+{"location":"proxy.ts","message":"getClaims result","data":{"hasData":true,"hasError":false,"path":"/"},"timestamp":1771172015636,"hypothesisId":"H3"}
+{"location":"proxy.ts","message":"getClaims result","data":{"hasData":true,"hasError":false,"path":"/dashboard"},"timestamp":1771172032165,"hypothesisId":"H3"}
+{"location":"proxy.ts","message":"getClaims result","data":{"hasData":true,"hasError":false,"path":"/dashboard"},"timestamp":1771172038051,"hypothesisId":"H3"}
+{"location":"proxy.ts","message":"getClaims result","data":{"hasData":true,"hasError":false,"path":"/dashboard"},"timestamp":1771172044866,"hypothesisId":"H3"}
+{"location":"proxy.ts","message":"getClaims result","data":{"hasData":true,"hasError":false,"path":"/login"},"timestamp":1771172053782,"hypothesisId":"H3"}

@@ -82,13 +82,14 @@ export default function DashboardPage() {
       return;
     }
 
-    const { error } = await supabase.from("leads").insert({
+    const insertPayload = {
       company: company.trim(),
       contact_name: contactName.trim() || null,
       email: email.trim() || null,
       source: source.trim() || null,
       stage: "New",
-    });
+    };
+    const { error } = await supabase.from("leads").insert(insertPayload);
 
     if (error) {
       setError("❌ " + error.message);
@@ -146,7 +147,7 @@ export default function DashboardPage() {
 
     // ✅ Trigger automation ONLY once (first-time qualification)
     if (isFirstQualify && eventId) {
-      fetch("/api/lead-qualified", {
+      const qualRes = await fetch("/api/lead-qualified", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -154,7 +155,10 @@ export default function DashboardPage() {
           eventId,
           stage: "Qualified",
         }),
-      }).catch((e) => console.warn("Webhook failed", e));
+        credentials: "same-origin",
+      });
+      const qualBody = await qualRes.json().catch(() => ({}));
+      if (!qualRes.ok) console.warn("Webhook failed", qualRes.status, qualBody);
     }
   };
 

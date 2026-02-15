@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(
@@ -22,7 +22,7 @@ export async function middleware(request: NextRequest) {
   );
 
   // Refresh session cookies if needed. getClaims() validates JWT locally
-  // without a DB call; preferred over getUser() in middleware.
+  // without a DB call; preferred over getUser() in proxy.
   await supabase.auth.getClaims();
 
   return response;
