@@ -11,7 +11,11 @@ type Lead = {
   email: string | null;
   source: string | null;
   stage: string;
-  owner: string | null;
+  user_id: string | null;
+
+  // ✅ added for idempotent qualification + automation
+  qualified_at?: string | null;
+  qualified_event_id?: string | null;
 };
 
 const STAGES = ["New", "Contacted", "Qualified", "Won", "Lost"] as const;
@@ -64,6 +68,13 @@ export default function DashboardPage() {
     window.location.href = "/login";
   };
 
+  // ── Debug helper ────────────────────────────────────────────────
+  const debugSession = async () => {
+    const { data } = await supabase.auth.getSession();
+    console.log("SESSION:", data.session);
+    alert(data.session ? "Session active ✅" : "No session ❌");
+  };
+
   const createLead = async () => {
     setError(null);
     if (!company.trim()) {
@@ -91,13 +102,36 @@ export default function DashboardPage() {
     await loadLeads();
   };
 
-  // ✅ Updated: stage update returns updated row + triggers webhook when Qualified
   const updateStage = async (id: string, stage: string) => {
     setError(null);
 
+    // Find current lead in state (so we know if it was qualified before)
+    const current = leads.find((l) => l.id === id);
+    if (!current) {
+      setError("❌ Lead not found in state. Try refreshing.");
+      return;
+    }
+
+    // ✅ Only treat as "first-time qualify" if:
+    // - stage is moving to Qualified
+    // - and no qualified_event_id exists yet
+    const isFirstQualify = stage === "Qualified" && !current.qualified_event_id;
+
+    // Generate eventId only for first qualification
+    const eventId = isFirstQualify ? crypto.randomUUID() : null;
+
+    // Build update payload
+    const updatePayload: Partial<Lead> & Record<string, any> = { stage };
+
+    if (isFirstQualify && eventId) {
+      updatePayload.qualified_event_id = eventId;
+      updatePayload.qualified_at = new Date().toISOString();
+    }
+
+    // Update the lead row and get the updated record back
     const { data: updated, error } = await supabase
       .from("leads")
-      .update({ stage })
+      .update(updatePayload)
       .eq("id", id)
       .select("*")
       .single();
@@ -107,22 +141,18 @@ export default function DashboardPage() {
       return;
     }
 
-    // update UI instantly
-    setLeads((prev) => prev.map((l) => (l.id === id ? { ...l, stage } : l)));
+    // Update UI state with the returned row (best: keeps new columns too)
+    setLeads((prev) => prev.map((l) => (l.id === id ? (updated as Lead) : l)));
 
-    // 🔥 Automation trigger
-    if (stage === "Qualified") {
+    // ✅ Trigger automation ONLY once (first-time qualification)
+    if (isFirstQualify && eventId) {
       fetch("/api/lead-qualified", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           leadId: updated.id,
-          company: updated.company,
-          contact_name: updated.contact_name,
-          email: updated.email,
-          source: updated.source,
-          stage: updated.stage,
-          qualifiedAt: new Date().toISOString(),
+          eventId,
+          stage: "Qualified",
         }),
       }).catch((e) => console.warn("Webhook failed", e));
     }
@@ -145,9 +175,23 @@ export default function DashboardPage() {
             Signed in as: <b>{userEmail}</b>
           </p>
         </div>
-        <button className="rounded-lg border px-3 py-2" onClick={signOut}>
-          Sign out
-        </button>
+
+        {/* Buttons side by side */}
+        <div className="flex items-center gap-3">
+          <button
+            className="rounded-lg border px-3 py-2 hover:bg-gray-100"
+            onClick={debugSession}
+          >
+            Debug session
+          </button>
+
+          <button
+            className="rounded-lg border px-3 py-2 hover:bg-gray-100"
+            onClick={signOut}
+          >
+            Sign out
+          </button>
+        </div>
       </div>
 
       <div className="mt-8 grid gap-6 md:grid-cols-2">
@@ -215,6 +259,13 @@ export default function DashboardPage() {
                       <div className="mt-1 text-xs opacity-70">
                         Source: {lead.source ?? "—"}
                       </div>
+
+                      {/* Optional: show that it was qualified once (helps debugging) */}
+                      {lead.qualified_event_id && (
+                        <div className="mt-2 text-[11px] opacity-60">
+                          Qualified event set ✅
+                        </div>
+                      )}
                     </div>
 
                     <select
